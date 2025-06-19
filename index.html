@@ -1,544 +1,359 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chia sẻ vị trí tự động</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8Oj2uXGEJ4ZfrKq7Hx91nrkTPZ4vL8Bk&libraries=places&language=vi"></script>
+    <title>Share Your Location</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        .pulse-animation {
+            animation: pulse 2s infinite;
         }
-        body {
-            background-color: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.7;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        header {
-            background-color: #4a6fa5;
-            color: white;
-            padding: 20px 0;
-            text-align: center;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            margin-bottom: 10px;
-            font-size: 2rem;
-        }
-        .card {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .btn {
-            display: inline-block;
-            background-color: #4a6fa5;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.3s;
-            margin: 10px ;
-        }
-        .btn:hover {
-            background-color: #3a5a80;
-        }
-        .btn-copy {
-            background-color: #2ecc71;
-        }
-        .btn-copy:hover {
-            background-color: #27ae60;
-        }
-        .link-display {
-            display: flex;
-            align-items: center;
-            margin: 20px 0;
-        }
-        #shareLink {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-right: 10px;
-            font-size: 1rem;
+        .map-container {
+            height: 400px;
+            background-color: #e5e7eb;
+            border-radius: 0.5rem;
+            position: relative;
         }
         #map {
-            height: 400px;
+            height: 100%;
             width: 100%;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-        .location-info {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            border-left: 4px solid #4a6fa5;
-        }
-        .hidden {
-            display: none;
-        }
-        .loading {
-            text-align: center;
-            padding: 20px;
-        }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border-left-color: #4a6fa5;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        footer {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-size: 0.9rem;
-        }
-        .tab-container {
-            display: flex;
-            margin-bottom: 20px;
-        }
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            background-color: #ddd;
-            margin-right: 5px;
-            border-radius: 5px 5px 0 0;
-        }
-        .tab.active {
-            background-color: white;
-            font-weight: bold;
-        }
-        .debug-info {
-            background-color: #f0f0f0;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            font-family: monospace;
-            font-size: 0.8rem;
-            max-height: 150px;
-            overflow-y: auto;
+            border-radius: 0.5rem;
         }
     </style>
 </head>
-<body>
-    <header>
-        <div class="container">
-            <h1>Chia sẻ vị trí tự động</h1>
-            <p>Nhận vị trí từ người khác ngay lập tức</p>
-        </div>
-    </header>
-
-    <div class="container">
-        <div class="tab-container">
-            <div class="tab active" id="senderTab">Tạo liên kết chia sẻ</div>
-            <div class="tab" id="receiverTab">Nhận vị trí từ liên kết</div>
-        </div>
-
-        <div id="senderSection" class="card">
-            <h2>Tạo liên kết chia sẻ</h2>
-            <p>Tạo liên kết và gửi cho người bạn muốn nhận vị trí. Khi họ mở liên kết, vị trí của họ sẽ tự động được gửi về đây.</p>
-            
-            <button id="generateLink" class="btn">Tạo liên kết chia sẻ</button>
-            
-            <div id="linkSection" class="hidden">
-                <div class="link-display">
-                    <input type="text" id="shareLink" readonly>
-                    <button id="copyLink" class="btn btn-copy">Sao chép</button>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="p-8">
+                <!-- Header -->
+                <div class="text-center mb-8">
+                    <i data-feather="map-pin" class="w-12 h-12 text-blue-500 mx-auto"></i>
+                    <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mt-4">Location Sharing</h1>
+                    <p class="text-gray-600 mt-2">You've been invited to share your current location</p>
                 </div>
-                <p>Gửi liên kết này cho người bạn muốn nhận vị trí. Vị trí sẽ xuất hiện ở đây khi họ mở liên kết.</p>
-            </div>
-            
-            <div id="mapContainer">
-                <h3>Vị trí nhận được</h3>
-                <div id="map"></div>
-                <div id="locationInfo" class="location-info hidden">
-                    <h4>Thông tin vị trí</h4>
-                    <p><strong>Địa chỉ:</strong> <span id="address"></span></p>
-                    <p><strong>Thời gian:</strong> <span id="time"></span></p>
-                </div>
-            </div>
-            
-            <div id="debugSender" class="debug-info hidden">
-                <h4>Thông tin debug:</h4>
-                <div id="debugLogSender"></div>
-            </div>
-        </div>
 
-        <div id="receiverSection" class="card hidden">
-            <div id="waitingLink">
-                <h2>Chờ nhận liên kết chia sẻ</h2>
-                <p>Vui lòng mở liên kết được gửi từ người yêu cầu vị trí.</p>
-            </div>
-            <div id="locationSharing" class="hidden">
-                <h2>Chia sẻ vị trí của bạn</h2>
-                <p>Thông tin vị trí của bạn sẽ tự động được gửi đến thiết bị yêu cầu.</p>
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>Đang gửi vị trí...</p>
+                <!-- Location Sharing Section -->
+                <div id="shareLocationSection">
+                    <div class="bg-blue-50 p-4 rounded-lg mb-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i data-feather="info" class="text-blue-500"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-blue-800">How it works</h3>
+                                <div class="text-sm text-blue-700 mt-1">
+                                    <p>When you click the button below, your browser will ask for permission to access your location. This information will be shared securely with the person who sent you this link.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center">
+                        <button id="shareLocationBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full transition duration-300 pulse-animation">
+                            <i data-feather="map-pin" class="inline mr-2"></i> Share My Location Now
+                        </button>
+                    </div>
                 </div>
-                <div id="debugReceiver" class="debug-info">
-                    <h4>Thông tin debug:</h4>
-                    <div id="debugLogReceiver"></div>
+
+                <!-- Map Container (Hidden Initially) -->
+                <div id="mapContainer" class="mt-8 hidden">
+                    <div class="map-container">
+                        <div id="map"></div>
+                    </div>
+                    <div id="locationInfo" class="mt-4 bg-green-50 p-4 rounded-lg hidden">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i data-feather="check-circle" class="text-green-500"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-green-800">Location Shared Successfully!</h3>
+                                <div class="text-sm text-green-700 mt-1">
+                                    <p>Your location has been securely shared. You can view it below.</p>
+                                    <p id="coordinates" class="mt-1 font-mono"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Link Generator Section (For YOU) -->
+                <div id="linkGeneratorSection" class="mt-12 border-t pt-8">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Generate a Shareable Link</h2>
+                    <p class="text-gray-600 mb-4">Create a link you can send to others to request their location (with their permission).</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="yourName" class="block text-sm font-medium text-gray-700">Your Name</label>
+                            <input type="text" id="yourName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="reason" class="block text-sm font-medium text-gray-700">Reason for request (optional)</label>
+                            <input type="text" id="reason" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="e.g. Meeting point">
+                        </div>
+                        
+                        <div class="pt-2">
+                            <button id="generateLinkBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full transition duration-300">
+                                Generate Shareable Link
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="generatedLinkContainer" class="mt-4 hidden">
+                        <label class="block text-sm font-medium text-gray-700">Your shareable link</label>
+                        <div class="mt-1 flex">
+                            <input type="text" id="generatedLink" class="flex-1 block w-full rounded-none rounded-l-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" readonly>
+                            <button id="copyLinkBtn" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                <i data-feather="copy" class="mr-2"></i> Copy
+                            </button>
+                        </div>
+                        <p class="mt-2 text-sm text-gray-500">Send this link to anyone you'd like to request their location from.</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <footer>
-        <div class="container">
-            <p>Ứng dụng chia sẻ vị trí tự động - Không cần cấp quyền</p>
-        </div>
-    </footer>
-
     <script>
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyC8xs9wBr8BQZt1LZOkOAEh8UeUy0FmmpI",
-            authDomain: "location-sharing-app-12345.firebaseapp.com",
-            databaseURL: "https://location-sharing-app-12345-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "location-sharing-app-12345",
-            storageBucket: "location-sharing-app-12345.appspot.com",
-            messagingSenderId: "123456789012",
-            appId: "1:123456789012:web:abcd1234efgh5678ijkl90"
-        };
-
-        // Initialize Firebase
-        let database;
-        try {
-            const app = firebase.initializeApp(firebaseConfig);
-            database = firebase.database();
-            logDebug('Firebase initialized successfully', 'info');
-        } catch (error) {
-            logDebug(`Firebase initialization error: ${error.message}`, 'error');
-        }
-
-        // DOM elements
-        const generateLinkBtn = document.getElementById('generateLink');
-        const shareLinkInput = document.getElementById('shareLink');
-        const copyLinkBtn = document.getElementById('copyLink');
-        const linkSection = document.getElementById('linkSection');
-        const locationInfo = document.getElementById('locationInfo');
-        const addressElement = document.getElementById('address');
-        const timeElement = document.getElementById('time');
-        const senderTab = document.getElementById('senderTab');
-        const receiverTab = document.getElementById('receiverTab');
-        const senderSection = document.getElementById('senderSection');
-        const receiverSection = document.getElementById('receiverSection');
-        const waitingLink = document.getElementById('waitingLink');
-        const locationSharing = document.getElementById('locationSharing');
-        const debugLogSender = document.getElementById('debugLogSender');
-        const debugLogReceiver = document.getElementById('debugLogReceiver');
-        const debugSender = document.getElementById('debugSender');
-        const debugReceiver = document.getElementById('debugReceiver');
-
-        // Map variables
-        let map;
-        let marker;
-        let geocoder;
-
-        // Check if the URL has a tracking ID (receiver mode)
-        const urlParams = new URLSearchParams(window.location.search);
-        const trackingId = urlParams.get('id');
-
-        // Tab switching
-        senderTab.addEventListener('click', () => {
-            senderTab.classList.add('active');
-            receiverTab.classList.remove('active');
-            senderSection.classList.remove('hidden');
-            receiverSection.classList.add('hidden');
-        });
-
-        receiverTab.addEventListener('click', () => {
-            receiverTab.classList.add('active');
-            senderTab.classList.remove('active');
-            receiverSection.classList.remove('hidden');
-            senderSection.classList.add('hidden');
-        });
-
-        // Debug logging function
-        function logDebug(message, type = 'info') {
-            const now = new Date();
-            const timestamp = now.toLocaleTimeString();
-            const logElement = document.createElement('div');
+        document.addEventListener('DOMContentLoaded', function() {
+            feather.replace();
             
-            logElement.textContent = `[${timestamp}] ${message}`;
-            logElement.style.color = type === 'error' ? '#e74c3c' : '#3498db';
+            // Initialize variables
+            let map;
+            let marker;
+            let sharedLocation = null;
             
-            if (trackingId) {
-                // Receiver mode
-                debugLogReceiver.appendChild(logElement);
-                debugReceiver.classList.remove('hidden');
+            // Check if this is a shared link view (for location recipient)
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedLinkRequest = urlParams.get('request');
+            
+            if (sharedLinkRequest === 'location') {
+                document.getElementById('linkGeneratorSection').classList.add('hidden');
             } else {
-                // Sender mode
-                debugLogSender.appendChild(logElement);
-                debugSender.classList.remove('hidden');
+                document.getElementById('shareLocationSection').classList.add('hidden');
             }
             
-            console.log(`[${type.toUpperCase()}] ${message}`);
-        }
-
-        // If this is a receiver (has tracking ID in URL)
-        if (trackingId) {
-            // Switch to receiver view
-            receiverTab.click();
-            waitingLink.classList.add('hidden');
-            locationSharing.classList.remove('hidden');
-            
-            logDebug(`Receiver mode activated with tracking ID: ${trackingId}`);
-            
-            // Get and send location
-            getAndSendLocation(trackingId);
-        }
-
-        // Generate share link
-        generateLinkBtn.addEventListener('click', () => {
-            const trackingId = generateTrackingId();
-            const shareUrl = `${window.location.origin}${window.location.pathname}?id=${trackingId}`;
-            
-            shareLinkInput.value = shareUrl;
-            linkSection.classList.remove('hidden');
-            
-            logDebug(`Generated share link with tracking ID: ${trackingId}`);
-            
-            // Set up listener for location updates
-            listenForLocation(trackingId);
-        });
-
-        // Copy link to clipboard
-        copyLinkBtn.addEventListener('click', () => {
-            shareLinkInput.select();
-            document.execCommand('copy');
-            copyLinkBtn.textContent = 'Đã sao chép!';
-            setTimeout(() => {
-                copyLinkBtn.textContent = 'Sao chép';
-            }, 2000);
-            logDebug('Share link copied to clipboard');
-        });
-
-        // Generate a random tracking ID
-        function generateTrackingId() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                const r = Math.random() * 16 | 0;
-                const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-        }
-
-        // Listen for location updates from the receiver
-        function listenForLocation(trackingId) {
-            if (!database) {
-                logDebug('Firebase Database not initialized', 'error');
-                return;
-            }
-            
-            const locationRef = database.ref(`locations/${trackingId}`);
-            
-            logDebug(`Listening for location updates at path: locations/${trackingId}`);
-            
-            locationRef.on('value', (snapshot) => {
-                const locationData = snapshot.val();
-                logDebug(`Received location update: ${JSON.stringify(locationData)}`);
+            // Share Location Button Handler
+            document.getElementById('shareLocationBtn').addEventListener('click', function() {
+                this.disabled = true;
+                this.innerHTML = '<i data-feather="loader" class="animate-spin inline mr-2"></i> Getting Location...';
+                feather.replace();
                 
-                if (locationData) {
-                    // Initialize map if not already done
-                    if (!map) {
-                        initMap();
-                        geocoder = new google.maps.Geocoder();
-                        logDebug('Google Maps initialized');
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            // Success - got location
+                            const coords = position.coords;
+                            sharedLocation = {
+                                latitude: coords.latitude,
+                                longitude: coords.longitude,
+                                accuracy: coords.accuracy,
+                                timestamp: new Date(position.timestamp)
+                            };
+                            
+                            // Show the map
+                            document.getElementById('mapContainer').classList.remove('hidden');
+                            
+                            // Load the Google Maps API
+                            loadGoogleMapsAPI().then(() => {
+                                initMap(coords.latitude, coords.longitude);
+                                
+                                // Show location info
+                                document.getElementById('locationInfo').classList.remove('hidden');
+                                document.getElementById('coordinates').textContent = 
+                                    `Latitude: ${coords.latitude.toFixed(6)}, Longitude: ${coords.longitude.toFixed(6)}`;
+                                
+                                // In a real app, you would send the location data to your server here
+                                console.log('Location to be sent to server:', sharedLocation);
+                                
+                                // Simulate sending to server (replace with actual API call)
+                                sendLocationToServer(sharedLocation);
+                            });
+                        },
+                        function(error) {
+                            // Error getting location
+                            let errorMessage = "Error getting location: ";
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    errorMessage += "You denied the request for geolocation.";
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    errorMessage += "Location information is unavailable.";
+                                    break;
+                                case error.TIMEOUT:
+                                    errorMessage += "The request to get user location timed out.";
+                                    break;
+                                case error.UNKNOWN_ERROR:
+                                    errorMessage += "An unknown error occurred.";
+                                    break;
+                            }
+                            
+                            alert(errorMessage);
+                            document.getElementById('shareLocationBtn').disabled = false;
+                            document.getElementById('shareLocationBtn').innerHTML = '<i data-feather="map-pin" class="inline mr-2"></i> Share My Location Now';
+                            feather.replace();
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                } else {
+                    alert("Geolocation is not supported by this browser.");
+                    document.getElementById('shareLocationBtn').disabled = false;
+                    document.getElementById('shareLocationBtn').innerHTML = '<i data-feather="map-pin" class="inline mr-2"></i> Share My Location Now';
+                    feather.replace();
+                }
+            });
+            
+            // Generate Link Button Handler
+            document.getElementById('generateLinkBtn').addEventListener('click', function() {
+                const yourName = document.getElementById('yourName').value.trim();
+                const reason = document.getElementById('reason').value.trim();
+                
+                if (!yourName) {
+                    alert("Please enter your name");
+                    return;
+                }
+                
+                // Generate the link (in a real app, this would be a server-generated token)
+                const baseUrl = window.location.origin + window.location.pathname;
+                let shareableLink = `${baseUrl}?request=location`;
+                
+                // Add parameters (encoded)
+                shareableLink += `&requestor=${encodeURIComponent(yourName)}`;
+                if (reason) {
+                    shareableLink += `&reason=${encodeURIComponent(reason)}`;
+                }
+                
+                // Show the generated link
+                document.getElementById('generatedLinkContainer').classList.remove('hidden');
+                document.getElementById('generatedLink').value = shareableLink;
+            });
+            
+            // Copy Link Button Handler
+            document.getElementById('copyLinkBtn').addEventListener('click', function() {
+                const copyText = document.getElementById('generatedLink');
+                copyText.select();
+                copyText.setSelectionRange(0, 99999); // For mobile devices
+                
+                document.execCommand('copy');
+                
+                // Visual feedback
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i data-feather="check" class="mr-2"></i> Copied!';
+                feather.replace();
+                
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    feather.replace();
+                }, 2000);
+            });
+            
+            // Function to load Google Maps API
+            function loadGoogleMapsAPI() {
+                return new Promise((resolve, reject) => {
+                    if (typeof google !== 'undefined') {
+                        resolve();
+                        return;
                     }
                     
-                    // Update map with new location
-                    updateMap(locationData);
-                    
-                    // Get address information
-                    getAddress(locationData.latitude, locationData.longitude);
-                    
-                    // Update time
-                    const time = new Date(locationData.timestamp);
-                    timeElement.textContent = time.toLocaleString('vi-VN');
-                    
-                    // Show location info
-                    locationInfo.classList.remove('hidden');
-                    
-                    logDebug(`Location received: ${locationData.latitude}, ${locationData.longitude}`);
-                }
-            }, (error) => {
-                logDebug(`Firebase read error: ${error.message}`, 'error');
-            });
-        }
-
-        // Initialize Google Map
-        function initMap() {
-            map = new google.maps.Map(document.getElementById('map'), {
-                center: {lat: 10.762622, lng: 106.660172}, // Default to HCM city
-                zoom: 12
-            });
-        }
-
-        // Update map with new location
-        function updateMap(locationData) {
-            const position = {
-                lat: locationData.latitude,
-                lng: locationData.longitude
-            };
-            
-            if (marker) {
-                marker.setPosition(position);
-            } else {
-                marker = new google.maps.Marker({
-                    position: position,
-                    map: map,
-                    title: 'Vị trí nhận được'
+                    const script = document.createElement('script');
+                    script.src = `https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap`;
+                    script.async = true;
+                    script.defer = true;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
                 });
             }
             
-            map.setCenter(position);
-            map.setZoom(15);
-        }
-
-        // Get address from coordinates
-        function getAddress(lat, lng) {
-            const latLng = new google.maps.LatLng(lat, lng);
-            
-            geocoder.geocode({'location': latLng}, (results, status) => {
-                if (status === 'OK') {
-                    if (results[0]) {
-                        // Find the address components we need
-                        let ward = '';
-                        let district = '';
-                        let province = '';
-                        
-                        for (let component of results[0].address_components) {
-                            if (component.types.includes('administrative_area_level_3')) {
-                                ward = component.long_name;
-                            }
-                            if (component.types.includes('administrative_area_level_2')) {
-                                district = component.long_name;
-                            }
-                            if (component.types.includes('administrative_area_level_1')) {
-                                province = component.long_name;
-                            }
-                        }
-                        
-                        addressElement.textContent = `${ward}, ${district}, ${province}`;
-                        logDebug(`Address resolved: ${ward}, ${district}, ${province}`);
-                    } else {
-                        addressElement.textContent = 'Không thể xác định địa chỉ';
-                        logDebug('No address results found', 'warning');
+            // Function to initialize the map
+            function initMap(lat, lng) {
+                const location = { lat: lat, lng: lng };
+                
+                map = new google.maps.Map(document.getElementById('map'), {
+                    zoom: 15,
+                    center: location,
+                    mapTypeControl: true,
+                    streetViewControl: false,
+                    fullscreenControl: true,
+                    mapTypeControlOptions: {
+                        style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+                        position: google.maps.ControlPosition.TOP_RIGHT
                     }
-                } else {
-                    addressElement.textContent = 'Không thể xác định địa chỉ';
-                    logDebug(`Geocoder failed: ${status}`, 'error');
-                }
-            });
-        }
-
-        // Get location from device and send to Firebase
-        function getAndSendLocation(trackingId) {
-            if (!database) {
-                logDebug('Firebase Database not initialized - cannot send location', 'error');
-                showError('Không thể kết nối đến server. Vui lòng thử lại sau.');
-                return;
+                });
+                
+                marker = new google.maps.Marker({
+                    position: location,
+                    map: map,
+                    title: 'Your Location',
+                    animation: google.maps.Animation.DROP
+                });
+                
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `You are here<br>Latitude: ${lat.toFixed(6)}<br>Longitude: ${lng.toFixed(6)}`
+                });
+                
+                marker.addListener('click', () => {
+                    infoWindow.open(map, marker);
+                });
+                
+                infoWindow.open(map, marker);
             }
             
-            if (!navigator.geolocation) {
-                logDebug('Geolocation not supported by browser', 'error');
-                showError('Trình duyệt không hỗ trợ định vị');
-                return;
+            // Function to simulate sending location to server
+            function sendLocationToServer(location) {
+                // In a real application, you would make an AJAX request here
+                console.log('Location data would be sent to server:', location);
+                
+                // Example of what you might send:
+                /*
+                fetch('/api/location', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                        accuracy: location.accuracy,
+                        timestamp: location.timestamp.toISOString(),
+                        shareToken: getShareTokenFromURL() // If using token-based sharing
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Success:', data);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+                */
             }
             
-            logDebug('Requesting geolocation...');
-            
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const locationData = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy,
-                        timestamp: firebase.database.ServerValue.TIMESTAMP
-                    };
-                    
-                    logDebug(`Location obtained: ${locationData.latitude}, ${locationData.longitude}`);
-                    logDebug(`Sending to Firebase at path: locations/${trackingId}`);
-                    
-                    // Send location to Firebase
-                    database.ref(`locations/${trackingId}`).set(locationData)
-                        .then(() => {
-                            logDebug('Location successfully sent to Firebase');
-                            showSuccess();
-                        })
-                        .catch((error) => {
-                            logDebug(`Firebase write error: ${error.message}`, 'error');
-                            showError(`Đã xảy ra lỗi: ${error.message}`);
-                        });
-                },
-                (error) => {
-                    logDebug(`Geolocation error: ${error.message} (code: ${error.code})`, 'error');
-                    showError(`Không thể lấy vị trí: ${getGeolocationErrorText(error.code)}`);
-                },
-                { enableHighAccuracy: true, timeout: 10000 }
-            );
-        }
-        
-        function getGeolocationErrorText(code) {
-            switch(code) {
-                case 1: return 'Người dùng từ chối cấp quyền';
-                case 2: return 'Không thể xác định vị trí';
-                case 3: return 'Hết thời gian chờ';
-                default: return 'Lỗi không xác định';
+            // Function to get share token from URL (for token-based systems)
+            function getShareTokenFromURL() {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get('token');
             }
-        }
-        
-        function showSuccess() {
-            document.querySelector('.loading').innerHTML = `
-                <div style="text-align: center; color: #2ecc71;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#2ecc71"/>
-                        <path d="M8 12L11 15L16 9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <p style="margin-top: 10px; font-weight: bold;">Đã gửi vị trí thành công!</p>
-                    <p>Bạn có thể đóng trang này</p>
-                </div>
-            `;
-        }
-        
-        function showError(message) {
-            document.querySelector('.loading').innerHTML = `
-                <div style="text-align: center; color: #e74c3c;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
-                        <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <p style="margin-top: 10px; font-weight: bold;">${message}</p>
-                    <p>Vui lòng thử lại</p>
-                </div>
-            `;
-        }
+        });
     </script>
 </body>
 </html>
-
