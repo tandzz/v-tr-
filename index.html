@@ -131,6 +131,16 @@
             background-color: white;
             font-weight: bold;
         }
+        .debug-info {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -170,6 +180,11 @@
                     <p><strong>Thời gian:</strong> <span id="time"></span></p>
                 </div>
             </div>
+            
+            <div id="debugSender" class="debug-info hidden">
+                <h4>Thông tin debug:</h4>
+                <div id="debugLogSender"></div>
+            </div>
         </div>
 
         <div id="receiverSection" class="card hidden">
@@ -183,6 +198,10 @@
                 <div class="loading">
                     <div class="spinner"></div>
                     <p>Đang gửi vị trí...</p>
+                </div>
+                <div id="debugReceiver" class="debug-info">
+                    <h4>Thông tin debug:</h4>
+                    <div id="debugLogReceiver"></div>
                 </div>
             </div>
         </div>
@@ -207,8 +226,14 @@
         };
 
         // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        let database;
+        try {
+            const app = firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            logDebug('Firebase initialized successfully', 'info');
+        } catch (error) {
+            logDebug(`Firebase initialization error: ${error.message}`, 'error');
+        }
 
         // DOM elements
         const generateLinkBtn = document.getElementById('generateLink');
@@ -224,6 +249,10 @@
         const receiverSection = document.getElementById('receiverSection');
         const waitingLink = document.getElementById('waitingLink');
         const locationSharing = document.getElementById('locationSharing');
+        const debugLogSender = document.getElementById('debugLogSender');
+        const debugLogReceiver = document.getElementById('debugLogReceiver');
+        const debugSender = document.getElementById('debugSender');
+        const debugReceiver = document.getElementById('debugReceiver');
 
         // Map variables
         let map;
@@ -249,12 +278,36 @@
             senderSection.classList.add('hidden');
         });
 
+        // Debug logging function
+        function logDebug(message, type = 'info') {
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString();
+            const logElement = document.createElement('div');
+            
+            logElement.textContent = `[${timestamp}] ${message}`;
+            logElement.style.color = type === 'error' ? '#e74c3c' : '#3498db';
+            
+            if (trackingId) {
+                // Receiver mode
+                debugLogReceiver.appendChild(logElement);
+                debugReceiver.classList.remove('hidden');
+            } else {
+                // Sender mode
+                debugLogSender.appendChild(logElement);
+                debugSender.classList.remove('hidden');
+            }
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
         // If this is a receiver (has tracking ID in URL)
         if (trackingId) {
             // Switch to receiver view
             receiverTab.click();
             waitingLink.classList.add('hidden');
             locationSharing.classList.remove('hidden');
+            
+            logDebug(`Receiver mode activated with tracking ID: ${trackingId}`);
             
             // Get and send location
             getAndSendLocation(trackingId);
@@ -268,6 +321,8 @@
             shareLinkInput.value = shareUrl;
             linkSection.classList.remove('hidden');
             
+            logDebug(`Generated share link with tracking ID: ${trackingId}`);
+            
             // Set up listener for location updates
             listenForLocation(trackingId);
         });
@@ -280,6 +335,7 @@
             setTimeout(() => {
                 copyLinkBtn.textContent = 'Sao chép';
             }, 2000);
+            logDebug('Share link copied to clipboard');
         });
 
         // Generate a random tracking ID
@@ -293,15 +349,25 @@
 
         // Listen for location updates from the receiver
         function listenForLocation(trackingId) {
+            if (!database) {
+                logDebug('Firebase Database not initialized', 'error');
+                return;
+            }
+            
             const locationRef = database.ref(`locations/${trackingId}`);
+            
+            logDebug(`Listening for location updates at path: locations/${trackingId}`);
             
             locationRef.on('value', (snapshot) => {
                 const locationData = snapshot.val();
+                logDebug(`Received location update: ${JSON.stringify(locationData)}`);
+                
                 if (locationData) {
                     // Initialize map if not already done
                     if (!map) {
                         initMap();
                         geocoder = new google.maps.Geocoder();
+                        logDebug('Google Maps initialized');
                     }
                     
                     // Update map with new location
@@ -316,7 +382,11 @@
                     
                     // Show location info
                     locationInfo.classList.remove('hidden');
+                    
+                    logDebug(`Location received: ${locationData.latitude}, ${locationData.longitude}`);
                 }
+            }, (error) => {
+                logDebug(`Firebase read error: ${error.message}`, 'error');
             });
         }
 
@@ -374,83 +444,99 @@
                         }
                         
                         addressElement.textContent = `${ward}, ${district}, ${province}`;
+                        logDebug(`Address resolved: ${ward}, ${district}, ${province}`);
                     } else {
                         addressElement.textContent = 'Không thể xác định địa chỉ';
+                        logDebug('No address results found', 'warning');
                     }
                 } else {
                     addressElement.textContent = 'Không thể xác định địa chỉ';
+                    logDebug(`Geocoder failed: ${status}`, 'error');
                 }
             });
         }
 
         // Get location from device and send to Firebase
         function getAndSendLocation(trackingId) {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const locationData = {
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy,
-                            timestamp: firebase.database.ServerValue.TIMESTAMP
-                        };
-                        
-                        // Send location to Firebase
-                        database.ref(`locations/${trackingId}`).set(locationData)
-                            .then(() => {
-                                // Update UI to show success
-                                document.querySelector('.loading').innerHTML = `
-                                    <div style="text-align: center; color: #2ecc71;">
-                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#2ecc71"/>
-                                            <path d="M8 12L11 15L16 9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                        <p style="margin-top: 10px; font-weight: bold;">Đã gửi vị trí thành công!</p>
-                                        <p>Bạn có thể đóng trang này</p>
-                                    </div>
-                                `;
-                            })
-                            .catch((error) => {
-                                document.querySelector('.loading').innerHTML = `
-                                    <div style="text-align: center; color: #e74c3c;">
-                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
-                                            <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                            <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                        <p style="margin-top: 10px; font-weight: bold;">Đã xảy ra lỗi: ${error.message}</p>
-                                        <p>Vui lòng thử lại</p>
-                                    </div>
-                                `;
-                            });
-                    },
-                    (error) => {
-                        document.querySelector('.loading').innerHTML = `
-                            <div style="text-align: center; color: #e74c3c;">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
-                                    <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                <p style="margin-top: 10px; font-weight: bold;">Không thể lấy vị trí: ${error.message}</p>
-                                <p>Vui lòng kiểm tra cấp quyền vị trí</p>
-                            </div>
-                        `;
-                    },
-                    { enableHighAccuracy: true, timeout: 10000 }
-                );
-            } else {
-                document.querySelector('.loading').innerHTML = `
-                    <div style="text-align: center; color: #e74c3c;">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
-                            <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <p style="margin-top: 10px; font-weight: bold;">Trình duyệt không hỗ trợ định vị</p>
-                    </div>
-                `;
+            if (!database) {
+                logDebug('Firebase Database not initialized - cannot send location', 'error');
+                showError('Không thể kết nối đến server. Vui lòng thử lại sau.');
+                return;
             }
+            
+            if (!navigator.geolocation) {
+                logDebug('Geolocation not supported by browser', 'error');
+                showError('Trình duyệt không hỗ trợ định vị');
+                return;
+            }
+            
+            logDebug('Requesting geolocation...');
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const locationData = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    
+                    logDebug(`Location obtained: ${locationData.latitude}, ${locationData.longitude}`);
+                    logDebug(`Sending to Firebase at path: locations/${trackingId}`);
+                    
+                    // Send location to Firebase
+                    database.ref(`locations/${trackingId}`).set(locationData)
+                        .then(() => {
+                            logDebug('Location successfully sent to Firebase');
+                            showSuccess();
+                        })
+                        .catch((error) => {
+                            logDebug(`Firebase write error: ${error.message}`, 'error');
+                            showError(`Đã xảy ra lỗi: ${error.message}`);
+                        });
+                },
+                (error) => {
+                    logDebug(`Geolocation error: ${error.message} (code: ${error.code})`, 'error');
+                    showError(`Không thể lấy vị trí: ${getGeolocationErrorText(error.code)}`);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+        
+        function getGeolocationErrorText(code) {
+            switch(code) {
+                case 1: return 'Người dùng từ chối cấp quyền';
+                case 2: return 'Không thể xác định vị trí';
+                case 3: return 'Hết thời gian chờ';
+                default: return 'Lỗi không xác định';
+            }
+        }
+        
+        function showSuccess() {
+            document.querySelector('.loading').innerHTML = `
+                <div style="text-align: center; color: #2ecc71;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#2ecc71"/>
+                        <path d="M8 12L11 15L16 9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p style="margin-top: 10px; font-weight: bold;">Đã gửi vị trí thành công!</p>
+                    <p>Bạn có thể đóng trang này</p>
+                </div>
+            `;
+        }
+        
+        function showError(message) {
+            document.querySelector('.loading').innerHTML = `
+                <div style="text-align: center; color: #e74c3c;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
+                        <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p style="margin-top: 10px; font-weight: bold;">${message}</p>
+                    <p>Vui lòng thử lại</p>
+                </div>
+            `;
         }
     </script>
 </body>
