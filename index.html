@@ -290,6 +290,8 @@
                                     errorMessage += "Lỗi không xác định.";
                                     break;
                             }
+                            showToast(errorMessage, 'error');
+                            updateStatus(errorMessage, 'error');
                             reject(errorMessage);
                         },
                         { 
@@ -299,27 +301,12 @@
                         }
                     );
                 } else {
-                    reject('Trình duyệt của bạn không hỗ trợ lấy vị trí.');
+                    const errorMessage = 'Trình duyệt của bạn không hỗ trợ lấy vị trí.';
+                    showToast(errorMessage, 'error');
+                    updateStatus(errorMessage, 'error');
+                    reject(errorMessage);
                 }
             });
-        }
-
-        // Hàm giải mã URL đã được mã hóa
-        function decodeUrl(encodedUrl) {
-            try {
-                // Giải mã URL
-                const decodedUrl = decodeURIComponent(encodedUrl);
-                
-                // Kiểm tra xem URL có hợp lệ không
-                if (!decodedUrl.startsWith('http://') && !decodedUrl.startsWith('https://')) {
-                    throw new Error('URL không hợp lệ');
-                }
-                
-                return decodedUrl;
-            } catch (e) {
-                console.error('Lỗi khi giải mã URL:', e);
-                return null;
-            }
         }
 
         // Xử lý sự kiện khi nhấn nút Tạo Liên Kết
@@ -353,91 +340,4 @@
                 
                 // Bắt đầu kiểm tra vị trí mới
                 if (refreshInterval) clearInterval(refreshInterval);
-                refreshInterval = setInterval(() => processLocationFromUrl(), 3000);
-            } catch (error) {
-                showToast(error, 'error');
-                updateStatus(error, 'error');
-            }
-        });
-
-        // Xử lý sự kiện khi nhấn nút Sao chép
-        document.getElementById('copy-btn').addEventListener('click', function() {
-            const linkInput = document.getElementById('generated-link');
-            linkInput.select();
-            document.execCommand('copy');
-            
-            // Hiệu ứng khi sao chép thành công
-            const copyBtn = document.getElementById('copy-btn');
-            copyBtn.textContent = 'Đã sao chép!';
-            copyBtn.classList.add('bg-green-600');
-            setTimeout(() => {
-                copyBtn.textContent = 'Sao chép';
-                copyBtn.classList.remove('bg-green-600');
-            }, 2000);
-            
-            showToast('Đã sao chép liên kết vào clipboard', 'success');
-        });
-
-        // Xử lý sự kiện khi nhấn nút Hiển thị QR Code
-        document.getElementById('show-qr-btn').addEventListener('click', function() {
-            const qrCode = document.getElementById('qr-code');
-            if (qrCode.style.display === 'none' || qrCode.style.display === '') {
-                qrCode.style.display = 'block';
-                this.textContent = 'Ẩn QR Code';
-            } else {
-                qrCode.style.display = 'none';
-                this.textContent = 'Hiển thị QR Code';
-            }
-        });
-
-        // Kiểm tra URL khi trang tải xong
-        document.addEventListener('DOMContentLoaded', function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const locData = urlParams.get('loc');
-            const senderId = urlParams.get('senderId');
-            const returnUrlEncoded = urlParams.get('returnUrl');
-
-            if (locData && senderId) {
-                // Đây là URL từ thiết bị gửi vị trí
-                processLocationFromUrl();
-            } else if (senderId) {
-                // Đây là URL để yêu cầu vị trí
-                const senderName = urlParams.get('name') || 'Thiết bị không xác định';
-                
-                // Giải mã URL trả về nếu cần
-                let returnUrl = window.location.href.split('?')[0];
-                if (returnUrlEncoded) {
-                    const decodedUrl = decodeUrl(returnUrlEncoded);
-                    if (decodedUrl) {
-                        returnUrl = decodedUrl;
-                    }
-                }
-                
-                // Yêu cầu vị trí từ người dùng
-                updateStatus('Đang yêu cầu vị trí của bạn...');
-                
-                getCurrentLocation()
-                    .then(location => {
-                        // Tạo URL để gửi vị trí về
-                        const returnUrlObj = new URL(returnUrl);
-                        
-                        returnUrlObj.searchParams.set('loc', `${location.lat},${location.lng}`);
-                        returnUrlObj.searchParams.set('name', senderName);
-                        returnUrlObj.searchParams.set('acc', location.accuracy);
-                        returnUrlObj.searchParams.set('senderId', senderId);
-                        
-                        // Chuyển hướng về URL với thông tin vị trí
-                        window.location.href = returnUrlObj.toString();
-                    })
-                    .catch(error => {
-                        showToast(error, 'error');
-                        updateStatus(error, 'error');
-                    });
-            } else {
-                // Đây là trang chính, không có yêu cầu vị trí
-                updateStatus('Sẵn sàng tạo liên kết thu thập vị trí');
-            }
-        });
-    </script>
-</body>
-</html>
+                refreshInterval
