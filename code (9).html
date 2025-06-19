@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trình Tạo Liên Kết Vị Trí - Phiên Bản Nâng Cấp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map {
+            height: 400px;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .link-container {
+            transition: all 0.3s ease;
+        }
+        .link-container:hover {
+            transform: translateY(-2px);
+        }
+        .copy-btn {
+            transition: all 0.2s ease;
+        }
+        .copy-btn:hover {
+            background-color: #1e40af !important;
+        }
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+        .status-message {
+            transition: all 0.3s ease;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Toast notification -->
+    <div id="toast" class="toast bg-white p-4 rounded-lg shadow-lg border-l-4 border-blue-500 hidden">
+        <div class="flex items-center">
+            <div id="toast-icon" class="mr-3"></div>
+            <div>
+                <p id="toast-message" class="text-sm font-medium"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-800 mb-2">Trình Tạo Liên Kết Vị Trí</h1>
+            <p class="text-gray-600">Phiên bản nâng cấp với kiểm tra lỗi và tự động làm mới</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Tạo Liên Kết Mới</h2>
+            <div class="flex flex-col space-y-4">
+                <div>
+                    <label for="link-name" class="block text-sm font-medium text-gray-700 mb-1">Tên liên kết (tùy chọn)</label>
+                    <input type="text" id="link-name" placeholder="Ví dụ: Liên kết cho bạn bè" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <button id="generate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-200">
+                    Tạo Liên Kết
+                </button>
+            </div>
+        </div>
+
+        <div id="link-section" class="hidden bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Liên Kết Của Bạn</h2>
+            <div class="link-container bg-gray-50 p-4 rounded-md mb-4">
+                <p class="text-sm text-gray-500 mb-2">Gửi liên kết này cho người bạn muốn nhận vị trí:</p>
+                <div class="flex items-center space-x-2">
+                    <input id="generated-link" type="text" readonly class="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-blue-600 truncate">
+                    <button id="copy-btn" class="copy-btn bg-blue-600 text-white px-4 py-2 rounded-md">
+                        Sao chép
+                    </button>
+                </div>
+            </div>
+            <div class="text-sm text-gray-500">
+                <p>Khi người nhận nhấp vào liên kết, họ sẽ được yêu cầu chia sẻ vị trí của mình.</p>
+                <p>Vị trí của họ sẽ tự động hiển thị trên bản đồ bên dưới.</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Bản Đồ Vị Trí</h2>
+                <div id="status-message" class="status-message text-sm px-3 py-1 rounded-full bg-blue-100 text-blue-800 hidden"></div>
+            </div>
+            <div id="map"></div>
+            <div id="location-info" class="mt-4 text-gray-600 hidden">
+                <p><span class="font-medium">Người gửi:</span> <span id="sender-name">Không rõ</span></p>
+                <p><span class="font-medium">Thời gian:</span> <span id="location-time">Vừa nhận</span></p>
+                <p><span class="font-medium">Tọa độ:</span> <span id="location-coords">Chưa có dữ liệu</span></p>
+                <p><span class="font-medium">Độ chính xác:</span> <span id="location-accuracy">Không rõ</span> mét</p>
+            </div>
+        </div>
+
+        <div id="history-section" class="bg-white rounded-lg shadow-md p-6 hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Lịch Sử Vị Trí</h2>
+            <div id="location-history" class="space-y-2">
+                <!-- Các vị trí đã nhận sẽ hiển thị ở đây -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Khởi tạo bản đồ với vị trí mặc định là Việt Nam
+        const map = L.map('map').setView([14.0583, 108.2772], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Biến lưu trữ thông tin
+        let currentLinkId = '';
+        let marker = null;
+        let locationsHistory = JSON.parse(localStorage.getItem('locationHistory') || '[]');
+        let refreshInterval = null;
+
+        // Hiển thị thông báo toast
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+            
+            toastMessage.textContent = message;
+            
+            // Đặt icon và màu sắc tùy theo loại thông báo
+            let iconHtml = '';
+            let borderColor = 'border-blue-500';
+            
+            if (type === 'success') {
+                iconHtml = '<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                borderColor = 'border-green-500';
+            } else if (type === 'error') {
+                iconHtml = '<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+                borderColor = 'border-red-500';
+            } else {
+                iconHtml = '<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+            }
+            
+            toastIcon.innerHTML = iconHtml;
+            toast.className = `toast bg-white p-4 rounded-lg shadow-lg border-l-4 ${borderColor}`;
+            toast.classList.remove('hidden');
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
+        // Hàm tạo ID ngẫu nhiên
+        function generateId() {
+            return 'loc-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        }
+
+        // Hàm kiểm tra và xử lý URL có chứa thông tin vị trí
+        function processLocationFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const locData = urlParams.get('loc');
+            const senderName = urlParams.get('name') || 'Không rõ';
+            const accuracy = urlParams.get('acc') || 'Không rõ';
+
+            if (locData) {
+                try {
+                    const [lat, lng] = locData.split(',').map(Number);
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        // Lưu vào lịch sử
+                        const newLocation = {
+                            lat,
+                            lng,
+                            name: senderName,
+                            accuracy,
+                            time: new Date().toISOString()
+                        };
+                        
+                        locationsHistory.unshift(newLocation);
+                        if (locationsHistory.length > 10) {
+                            locationsHistory = locationsHistory.slice(0, 10);
+                        }
+                        
+                        localStorage.setItem('locationHistory', JSON.stringify(locationsHistory));
+                        
+                        // Hiển thị vị trí
+                        showLocationOnMap(lat, lng, senderName, accuracy);
+                        showHistory();
+                        
+                        // Hiển thị thông báo
+                        showToast(`Đã nhận vị trí từ ${senderName}`, 'success');
+                        updateStatus(`Đã nhận vị trí từ ${senderName}`, 'success');
+                        
+                        // Xóa tham số URL để tránh xử lý lại
+                        const cleanUrl = window.location.href.split('?')[0];
+                        window.history.replaceState({}, document.title, cleanUrl);
+                        
+                        return true;
+                    }
+                } catch (e) {
+                    console.error('Lỗi khi phân tích vị trí:', e);
+                    showToast('Lỗi khi xử lý vị trí nhận được', 'error');
+                    updateStatus('Lỗi khi xử lý vị trí', 'error');
+                }
+            }
+            return false;
+        }
+
+        // Hàm hiển thị vị trí trên bản đồ
+        function showLocationOnMap(lat, lng, senderName, accuracy) {
+            // Xóa marker cũ nếu có
+            if (marker) {
+                map.removeLayer(marker);
+            }
+
+            // Thêm marker mới
+            marker = L.marker([lat, lng]).addTo(map)
+                .bindPopup(`<b>Vị trí từ:</b> ${senderName}<br>
+                          <b>Tọa độ:</b> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+                          <b>Độ chính xác:</b> ${accuracy} mét`)
+                .openPopup();
+
+            // Phóng to bản đồ đến vị trí này
+            map.setView([lat, lng], 15);
+
+            // Hiển thị thông tin vị trí
+            document.getElementById('sender-name').textContent = senderName;
+            document.getElementById('location-coords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            document.getElementById('location-accuracy').textContent = accuracy;
+            
+            const now = new Date();
+            document.getElementById('location-time').textContent = now.toLocaleString();
+            
+            document.getElementById('location-info').classList.remove('hidden');
+        }
+
+        // Hàm cập nhật trạng thái
+        function updateStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status-message');
+            statusElement.textContent = message;
+            statusElement.className = `status-message text-sm px-3 py-1 rounded-full ${type === 'error' ? 'bg-red-100 text-red-800' : type === 'success' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`;
+            statusElement.classList.remove('hidden');
+            
+            if (type !== 'error') {
+                setTimeout(() => {
+                    statusElement.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        // Hàm hiển thị lịch sử vị trí
+        function showHistory() {
+            if (locationsHistory.length > 0) {
+                const historyContainer = document.getElementById('location-history');
+                historyContainer.innerHTML = '';
+                
+                locationsHistory.forEach((loc, index) => {
+                    const locElement = document.createElement('div');
+                    locElement.className = 'p-3 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer';
+                    locElement.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-medium">${loc.name || 'Không rõ'}</p>
+                                <p class="text-sm text-gray-500">${new Date(loc.time).toLocaleString()}</p>
+                            </div>
+                            <button class="view-location-btn px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm" data-index="${index}">
+                                Xem
+                            </button>
+                        </div>
+                    `;
+                    historyContainer.appendChild(locElement);
+                });
+                
+                document.getElementById('history-section').classList.remove('hidden');
+                
+                // Thêm sự kiện cho các nút xem
+                document.querySelectorAll('.view-location-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        const loc = locationsHistory[index];
+                        showLocationOnMap(loc.lat, loc.lng, loc.name, loc.accuracy);
+                        showToast(`Đang hiển thị vị trí từ ${loc.name}`);
+                    });
+                });
+            }
+        }
+
+        // Xử lý sự kiện khi nhấn nút Tạo Liên Kết
+        document.getElementById('generate-btn').addEventListener('click', function() {
+            const linkName = document.getElementById('link-name').value.trim();
+            currentLinkId = generateId();
+            
+            // Tạo URL liên kết
+            const currentUrl = new URL(window.location.href.split('?')[0], window.location.origin);
+            currentUrl.searchParams.set('id', currentLinkId);
+            if (linkName) {
+                currentUrl.searchParams.set('ref', encodeURIComponent(linkName));
+            }
+            
+            // Hiển thị liên kết
+            document.getElementById('generated-link').value = currentUrl.toString();
+            document.getElementById('link-section').classList.remove('hidden');
+            
+            showToast('Đã tạo liên kết thành công', 'success');
+            updateStatus('Sẵn sàng nhận vị trí', 'success');
+        });
+
+        // Xử lý sự kiện khi nhấn nút Sao chép
+        document.getElementById('copy-btn').addEventListener('click', function() {
+            const linkInput = document.getElementById('generated-link');
+            linkInput.select();
+            document.execCommand('copy');
+            
+            // Hiệu ứng khi sao chép thành công
+            const copyBtn = document.getElementById('copy-btn');
+            copyBtn.textContent = 'Đã sao chép!';
+            copyBtn.classList.add('bg-green-600');
+            setTimeout(() => {
+                copyBtn.textContent = 'Sao chép';
+                copyBtn.classList.remove('bg-green-600');
+            }, 2000);
+            
+            showToast('Đã sao chép liên kết vào clipboard', 'success');
+        });
+
+        // Kiểm tra URL khi trang tải xong
+        document.addEventListener('DOMContentLoaded', function() {
+            // Kiểm tra xem có vị trí trong URL không
+            if (processLocationFromUrl()) {
+                return;
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const idParam = urlParams.get('id');
+
+            if (idParam) {
+                // Đây là URL để yêu cầu vị trí
+                const refName = urlParams.get('ref') || 'Tôi';
+                
+                // Yêu cầu vị trí từ người dùng
+                if (navigator.geolocation) {
+                    updateStatus('Đang yêu cầu vị trí...');
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            const lat = position.coords.latitude;
+                            const lng = position.coords.longitude;
+                            const accuracy = Math.round(position.coords.accuracy);
+                            
+                            // Tạo URL để gửi vị trí về
+                            const returnUrl = new URL(window.location.href.split('?')[0], window.location.origin);
+                            returnUrl.searchParams.delete('id');
+                            returnUrl.searchParams.delete('ref');
+                            returnUrl.searchParams.set('loc', `${lat},${lng}`);
+                            returnUrl.searchParams.set('name', refName);
+                            returnUrl.searchParams.set('acc', accuracy);
+                            
+                            // Chuyển hướng về URL với thông tin vị trí
+                            window.location.href = returnUrl.toString();
+                        },
+                        function(error) {
+                            let errorMessage = 'Không thể lấy vị trí: ';
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    errorMessage += "Người dùng từ chối yêu cầu vị trí.";
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    errorMessage += "Thông tin vị trí không có sẵn.";
+                                    break;
+                                case error.TIMEOUT:
+                                    errorMessage += "Yêu cầu vị trí hết thời gian chờ.";
+                                    break;
+                                case error.UNKNOWN_ERROR:
+                                    errorMessage += "Lỗi không xác định.";
+                                    break;
+                            }
+                            
+                            showToast(errorMessage, 'error');
+                            updateStatus(errorMessage, 'error');
+                        },
+                        { 
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                } else {
+                    showToast('Trình duyệt của bạn không hỗ trợ lấy vị trí.', 'error');
+                    updateStatus('Trình duyệt không hỗ trợ Geolocation', 'error');
+                }
+            } else {
+                // Đây là trang chính, không có yêu cầu vị trí
+                updateStatus('Sẵn sàng nhận vị trí');
+                showHistory();
+                
+                // Kiểm tra định kỳ xem có vị trí mới không (mô phỏng real-time)
+                refreshInterval = setInterval(() => {
+                    if (processLocationFromUrl()) {
+                        // Nếu có vị trí mới, reset interval
+                        clearInterval(refreshInterval);
+                        refreshInterval = setInterval(() => processLocationFromUrl(), 5000);
+                    }
+                }, 5000);
+            }
+        });
+    </script>
+</body>
+</html>
