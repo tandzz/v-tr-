@@ -3,341 +3,456 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thu Thập Vị Trí Hai Thiết Bị</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <title>Chia sẻ vị trí tự động</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8Oj2uXGEJ4ZfrKq7Hx91nrkTPZ4vL8Bk&libraries=places&language=vi"></script>
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #4a6fa5;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #4a6fa5;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+            margin: 10px ;
+        }
+        .btn:hover {
+            background-color: #3a5a80;
+        }
+        .btn-copy {
+            background-color: #2ecc71;
+        }
+        .btn-copy:hover {
+            background-color: #27ae60;
+        }
+        .link-display {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+        #shareLink {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+            font-size: 1rem;
+        }
         #map {
             height: 400px;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 20px;
         }
-        .link-container {
-            transition: all 0.3s ease;
+        .location-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #4a6fa5;
         }
-        .link-container:hover {
-            transform: translateY(-2px);
-        }
-        .copy-btn {
-            transition: all 0.2s ease;
-        }
-        .copy-btn:hover {
-            background-color: #1e40af !important;
-        }
-        .copy-btn:active {
-            transform: scale(0.95);
-        }
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .toast.show {
-            opacity: 1;
-        }
-        #qr-code {
+        .hidden {
             display: none;
-            margin: 0 auto;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #4a6fa5;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .tab-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #ddd;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab.active {
+            background-color: white;
+            font-weight: bold;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <!-- Toast notification -->
-    <div id="toast" class="toast bg-white p-4 rounded-lg shadow-lg border-l-4 border-blue-500 hidden">
-        <div class="flex items-center">
-            <div id="toast-icon" class="mr-3"></div>
-            <div>
-                <p id="toast-message" class="text-sm font-medium"></p>
+<body>
+    <header>
+        <div class="container">
+            <h1>Chia sẻ vị trí tự động</h1>
+            <p>Nhận vị trí từ người khác ngay lập tức</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="tab-container">
+            <div class="tab active" id="senderTab">Tạo liên kết chia sẻ</div>
+            <div class="tab" id="receiverTab">Nhận vị trí từ liên kết</div>
+        </div>
+
+        <div id="senderSection" class="card">
+            <h2>Tạo liên kết chia sẻ</h2>
+            <p>Tạo liên kết và gửi cho người bạn muốn nhận vị trí. Khi họ mở liên kết, vị trí của họ sẽ tự động được gửi về đây.</p>
+            
+            <button id="generateLink" class="btn">Tạo liên kết chia sẻ</button>
+            
+            <div id="linkSection" class="hidden">
+                <div class="link-display">
+                    <input type="text" id="shareLink" readonly>
+                    <button id="copyLink" class="btn btn-copy">Sao chép</button>
+                </div>
+                <p>Gửi liên kết này cho người bạn muốn nhận vị trí. Vị trí sẽ xuất hiện ở đây khi họ mở liên kết.</p>
+            </div>
+            
+            <div id="mapContainer">
+                <h3>Vị trí nhận được</h3>
+                <div id="map"></div>
+                <div id="locationInfo" class="location-info hidden">
+                    <h4>Thông tin vị trí</h4>
+                    <p><strong>Địa chỉ:</strong> <span id="address"></span></p>
+                    <p><strong>Thời gian:</strong> <span id="time"></span></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="receiverSection" class="card hidden">
+            <div id="waitingLink">
+                <h2>Chờ nhận liên kết chia sẻ</h2>
+                <p>Vui lòng mở liên kết được gửi từ người yêu cầu vị trí.</p>
+            </div>
+            <div id="locationSharing" class="hidden">
+                <h2>Chia sẻ vị trí của bạn</h2>
+                <p>Thông tin vị trí của bạn sẽ tự động được gửi đến thiết bị yêu cầu.</p>
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang gửi vị trí...</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-blue-800 mb-2">Thu Thập Vị Trí Hai Thiết Bị</h1>
-            <p class="text-gray-600">Tạo liên kết để nhận vị trí từ thiết bị khác</p>
+    <footer>
+        <div class="container">
+            <p>Ứng dụng chia sẻ vị trí tự động - Không cần cấp quyền</p>
         </div>
-
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Tạo Liên Kết Mới</h2>
-            <div class="flex flex-col space-y-4">
-                <div>
-                    <label for="link-name" class="block text-sm font-medium text-gray-700 mb-1">Tên thiết bị (tùy chọn)</label>
-                    <input type="text" id="link-name" placeholder="Ví dụ: Thiết bị A" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <button id="generate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-200">
-                    Tạo Liên Kết
-                </button>
-            </div>
-        </div>
-
-        <div id="link-section" class="hidden bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Liên Kết Thu Thập Vị Trí</h2>
-            <div class="link-container bg-gray-50 p-4 rounded-md mb-4">
-                <p class="text-sm text-gray-500 mb-2">Gửi liên kết này đến thiết bị bạn muốn thu thập vị trí:</p>
-                <div class="flex items-center space-x-2">
-                    <input id="generated-link" type="text" readonly class="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-blue-600 truncate">
-                    <button id="copy-btn" class="copy-btn bg-blue-600 text-white px-4 py-2 rounded-md">
-                        Sao chép
-                    </button>
-                </div>
-            </div>
-            <div class="text-center mt-4">
-                <button id="show-qr-btn" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                    Hiển thị QR Code
-                </button>
-                <div id="qr-code" class="mt-4"></div>
-            </div>
-            <div class="text-sm text-gray-500 mt-4">
-                <p>Khi thiết bị nhận mở liên kết này, họ sẽ được yêu cầu chia sẻ vị trí.</p>
-                <p>Vị trí của họ sẽ tự động gửi về và hiển thị trên bản đồ bên dưới.</p>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Bản Đồ Vị Trí</h2>
-            <div id="status-message" class="text-sm px-3 py-2 rounded-md bg-blue-100 text-blue-800 mb-4">
-                Đang chờ nhận vị trí từ thiết bị khác...
-            </div>
-            <div id="map"></div>
-            <div id="location-info" class="mt-4 text-gray-600 hidden">
-                <p><span class="font-medium">Thiết bị gửi:</span> <span id="sender-name">Không rõ</span></p>
-                <p><span class="font-medium">Thời gian:</span> <span id="location-time">Vừa nhận</span></p>
-                <p><span class="font-medium">Tọa độ:</span> <span id="location-coords">Chưa có dữ liệu</span></p>
-                <p><span class="font-medium">Độ chính xác:</span> <span id="location-accuracy">Không rõ</span> mét</p>
-                <p><span class="font-medium">Khoảng cách:</span> <span id="location-distance">Đang tính...</span></p>
-            </div>
-        </div>
-    </div>
+    </footer>
 
     <script>
-        // Khởi tạo bản đồ
-        const map = L.map('map').setView([14.0583, 108.2772], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC8xs9wBr8BQZt1LZOkOAEh8UeUy0FmmpI",
+            authDomain: "location-sharing-app-12345.firebaseapp.com",
+            databaseURL: "https://location-sharing-app-12345-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "location-sharing-app-12345",
+            storageBucket: "location-sharing-app-12345.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcd1234efgh5678ijkl90"
+        };
 
-        // Biến lưu trữ thông tin
-        let currentLinkId = '';
-        let marker = null;
-        let myLocation = null;
-        let refreshInterval = null;
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
 
-        // Hiển thị thông báo toast
-        function showToast(message, type = 'info') {
-            const toast = document.getElementById('toast');
-            const toastMessage = document.getElementById('toast-message');
-            const toastIcon = document.getElementById('toast-icon');
+        // DOM elements
+        const generateLinkBtn = document.getElementById('generateLink');
+        const shareLinkInput = document.getElementById('shareLink');
+        const copyLinkBtn = document.getElementById('copyLink');
+        const linkSection = document.getElementById('linkSection');
+        const locationInfo = document.getElementById('locationInfo');
+        const addressElement = document.getElementById('address');
+        const timeElement = document.getElementById('time');
+        const senderTab = document.getElementById('senderTab');
+        const receiverTab = document.getElementById('receiverTab');
+        const senderSection = document.getElementById('senderSection');
+        const receiverSection = document.getElementById('receiverSection');
+        const waitingLink = document.getElementById('waitingLink');
+        const locationSharing = document.getElementById('locationSharing');
+
+        // Map variables
+        let map;
+        let marker;
+        let geocoder;
+
+        // Check if the URL has a tracking ID (receiver mode)
+        const urlParams = new URLSearchParams(window.location.search);
+        const trackingId = urlParams.get('id');
+
+        // Tab switching
+        senderTab.addEventListener('click', () => {
+            senderTab.classList.add('active');
+            receiverTab.classList.remove('active');
+            senderSection.classList.remove('hidden');
+            receiverSection.classList.add('hidden');
+        });
+
+        receiverTab.addEventListener('click', () => {
+            receiverTab.classList.add('active');
+            senderTab.classList.remove('active');
+            receiverSection.classList.remove('hidden');
+            senderSection.classList.add('hidden');
+        });
+
+        // If this is a receiver (has tracking ID in URL)
+        if (trackingId) {
+            // Switch to receiver view
+            receiverTab.click();
+            waitingLink.classList.add('hidden');
+            locationSharing.classList.remove('hidden');
             
-            toastMessage.textContent = message;
+            // Get and send location
+            getAndSendLocation(trackingId);
+        }
+
+        // Generate share link
+        generateLinkBtn.addEventListener('click', () => {
+            const trackingId = generateTrackingId();
+            const shareUrl = `${window.location.origin}${window.location.pathname}?id=${trackingId}`;
             
-            // Đặt icon và màu sắc tùy theo loại thông báo
-            let iconHtml = '';
-            let borderColor = 'border-blue-500';
+            shareLinkInput.value = shareUrl;
+            linkSection.classList.remove('hidden');
             
-            if (type === 'success') {
-                iconHtml = '<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
-                borderColor = 'border-green-500';
-            } else if (type === 'error') {
-                iconHtml = '<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-                borderColor = 'border-red-500';
-            } else {
-                iconHtml = '<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
-            }
-            
-            toastIcon.innerHTML = iconHtml;
-            toast.className = `toast bg-white p-4 rounded-lg shadow-lg border-l-4 ${borderColor}`;
-            toast.classList.remove('hidden');
-            toast.classList.add('show');
-            
+            // Set up listener for location updates
+            listenForLocation(trackingId);
+        });
+
+        // Copy link to clipboard
+        copyLinkBtn.addEventListener('click', () => {
+            shareLinkInput.select();
+            document.execCommand('copy');
+            copyLinkBtn.textContent = 'Đã sao chép!';
             setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.classList.add('hidden'), 300);
-            }, 3000);
+                copyLinkBtn.textContent = 'Sao chép';
+            }, 2000);
+        });
+
+        // Generate a random tracking ID
+        function generateTrackingId() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
         }
 
-        // Hàm tạo ID ngẫu nhiên
-        function generateId() {
-            return 'loc-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-        }
-
-        // Hàm tính khoảng cách giữa hai tọa độ (Haversine formula)
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Bán kính Trái đất tính bằng km
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const distance = R * c;
+        // Listen for location updates from the receiver
+        function listenForLocation(trackingId) {
+            const locationRef = database.ref(`locations/${trackingId}`);
             
-            // Trả về khoảng cách theo mét nếu < 1km, ngược lại trả về km
-            if (distance < 1) {
-                return Math.round(distance * 1000) + ' mét';
-            } else {
-                return distance.toFixed(2) + ' km';
-            }
-        }
-
-        // Hàm kiểm tra và xử lý URL có chứa thông tin vị trí
-        function processLocationFromUrl() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const locData = urlParams.get('loc');
-            const senderName = urlParams.get('name') || 'Thiết bị không xác định';
-            const accuracy = urlParams.get('acc') || 'Không rõ';
-            const senderId = urlParams.get('senderId');
-
-            if (locData && senderId) {
-                try {
-                    const [lat, lng] = locData.split(',').map(Number);
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        // Hiển thị vị trí trên bản đồ
-                        showLocationOnMap(lat, lng, senderName, accuracy, senderId);
-                        
-                        // Nếu có vị trí của thiết bị hiện tại, tính khoảng cách
-                        if (myLocation) {
-                            const distance = calculateDistance(myLocation.lat, myLocation.lng, lat, lng);
-                            document.getElementById('location-distance').textContent = distance;
-                        }
-                        
-                        // Hiển thị thông báo
-                        showToast(`Đã nhận vị trí từ ${senderName}`, 'success');
-                        updateStatus(`Đã nhận vị trí từ ${senderName}`, 'success');
-                        
-                        // Xóa tham số URL để tránh xử lý lại
-                        const cleanUrl = window.location.href.split('?')[0];
-                        window.history.replaceState({}, document.title, cleanUrl);
-                        
-                        return true;
+            locationRef.on('value', (snapshot) => {
+                const locationData = snapshot.val();
+                if (locationData) {
+                    // Initialize map if not already done
+                    if (!map) {
+                        initMap();
+                        geocoder = new google.maps.Geocoder();
                     }
-                } catch (e) {
-                    console.error('Lỗi khi phân tích vị trí:', e);
-                    showToast('Lỗi khi xử lý vị trí nhận được', 'error');
-                    updateStatus('Lỗi khi xử lý vị trí', 'error');
-                }
-            }
-            return false;
-        }
-
-        // Hàm hiển thị vị trí trên bản đồ
-        function showLocationOnMap(lat, lng, senderName, accuracy, senderId) {
-            // Xóa marker cũ nếu có
-            if (marker) {
-                map.removeLayer(marker);
-            }
-
-            // Thêm marker mới
-            marker = L.marker([lat, lng]).addTo(map)
-                .bindPopup(`<b>Thiết bị:</b> ${senderName}<br>
-                          <b>Tọa độ:</b> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
-                          <b>Độ chính xác:</b> ${accuracy} mét`)
-                .openPopup();
-
-            // Phóng to bản đồ đến vị trí này
-            map.setView([lat, lng], 15);
-
-            // Hiển thị thông tin vị trí
-            document.getElementById('sender-name').textContent = senderName;
-            document.getElementById('location-coords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-            document.getElementById('location-accuracy').textContent = accuracy;
-            
-            const now = new Date();
-            document.getElementById('location-time').textContent = now.toLocaleString();
-            
-            document.getElementById('location-info').classList.remove('hidden');
-        }
-
-        // Hàm cập nhật trạng thái
-        function updateStatus(message, type = 'info') {
-            const statusElement = document.getElementById('status-message');
-            statusElement.textContent = message;
-            statusElement.className = `text-sm px-3 py-2 rounded-md ${type === 'error' ? 'bg-red-100 text-red-800' : type === 'success' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`;
-        }
-
-        // Hàm lấy vị trí hiện tại của thiết bị
-        function getCurrentLocation() {
-            return new Promise((resolve, reject) => {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        position => {
-                            myLocation = {
-                                lat: position.coords.latitude,
-                                lng: position.coords.longitude,
-                                accuracy: Math.round(position.coords.accuracy)
-                            };
-                            resolve(myLocation);
-                        },
-                        error => {
-                            let errorMessage = 'Không thể lấy vị trí: ';
-                            switch(error.code) {
-                                case error.PERMISSION_DENIED:
-                                    errorMessage += "Bạn đã từ chối yêu cầu vị trí.";
-                                    break;
-                                case error.POSITION_UNAVAILABLE:
-                                    errorMessage += "Thông tin vị trí không có sẵn.";
-                                    break;
-                                case error.TIMEOUT:
-                                    errorMessage += "Yêu cầu vị trí hết thời gian chờ.";
-                                    break;
-                                case error.UNKNOWN_ERROR:
-                                    errorMessage += "Lỗi không xác định.";
-                                    break;
-                            }
-                            showToast(errorMessage, 'error');
-                            updateStatus(errorMessage, 'error');
-                            reject(errorMessage);
-                        },
-                        { 
-                            enableHighAccuracy: true,
-                            timeout: 10000,
-                            maximumAge: 0
-                        }
-                    );
-                } else {
-                    const errorMessage = 'Trình duyệt của bạn không hỗ trợ lấy vị trí.';
-                    showToast(errorMessage, 'error');
-                    updateStatus(errorMessage, 'error');
-                    reject(errorMessage);
+                    
+                    // Update map with new location
+                    updateMap(locationData);
+                    
+                    // Get address information
+                    getAddress(locationData.latitude, locationData.longitude);
+                    
+                    // Update time
+                    const time = new Date(locationData.timestamp);
+                    timeElement.textContent = time.toLocaleString('vi-VN');
+                    
+                    // Show location info
+                    locationInfo.classList.remove('hidden');
                 }
             });
         }
 
-        // Xử lý sự kiện khi nhấn nút Tạo Liên Kết
-        document.getElementById('generate-btn').addEventListener('click', async function() {
-            const deviceName = document.getElementById('link-name').value.trim() || 'Thiết bị không xác định';
+        // Initialize Google Map
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {lat: 10.762622, lng: 106.660172}, // Default to HCM city
+                zoom: 12
+            });
+        }
+
+        // Update map with new location
+        function updateMap(locationData) {
+            const position = {
+                lat: locationData.latitude,
+                lng: locationData.longitude
+            };
             
-            try {
-                // Lấy vị trí hiện tại trước khi tạo liên kết
-                await getCurrentLocation();
-                
-                currentLinkId = generateId();
-                
-                // Tạo URL liên kết
-                const currentUrl = new URL(window.location.href.split('?')[0], window.location.origin);
-                currentUrl.searchParams.set('senderId', currentLinkId);
-                currentUrl.searchParams.set('name', encodeURIComponent(deviceName));
-                currentUrl.searchParams.set('returnUrl', encodeURIComponent(window.location.href.split('?')[0]));
-                
-                // Hiển thị liên kết
-                document.getElementById('generated-link').value = currentUrl.toString();
-                document.getElementById('link-section').classList.remove('hidden');
-                
-                // Tạo QR code
-                const qrCodeElement = document.getElementById('qr-code');
-                QRCode.toCanvas(qrCodeElement, currentUrl.toString(), { width: 200 }, function(error) {
-                    if (error) console.error(error);
+            if (marker) {
+                marker.setPosition(position);
+            } else {
+                marker = new google.maps.Marker({
+                    position: position,
+                    map: map,
+                    title: 'Vị trí nhận được'
                 });
-                
-                showToast('Đã tạo liên kết thu thập vị trí', 'success');
-                updateStatus('Sẵn sàng nhận vị trí từ thiết bị khác', 'success');
-                
-                // Bắt đầu kiểm tra vị trí mới
-                if (refreshInterval) clearInterval(refreshInterval);
-                refreshInterval
+            }
+            
+            map.setCenter(position);
+            map.setZoom(15);
+        }
+
+        // Get address from coordinates
+        function getAddress(lat, lng) {
+            const latLng = new google.maps.LatLng(lat, lng);
+            
+            geocoder.geocode({'location': latLng}, (results, status) => {
+                if (status === 'OK') {
+                    if (results[0]) {
+                        // Find the address components we need
+                        let ward = '';
+                        let district = '';
+                        let province = '';
+                        
+                        for (let component of results[0].address_components) {
+                            if (component.types.includes('administrative_area_level_3')) {
+                                ward = component.long_name;
+                            }
+                            if (component.types.includes('administrative_area_level_2')) {
+                                district = component.long_name;
+                            }
+                            if (component.types.includes('administrative_area_level_1')) {
+                                province = component.long_name;
+                            }
+                        }
+                        
+                        addressElement.textContent = `${ward}, ${district}, ${province}`;
+                    } else {
+                        addressElement.textContent = 'Không thể xác định địa chỉ';
+                    }
+                } else {
+                    addressElement.textContent = 'Không thể xác định địa chỉ';
+                }
+            });
+        }
+
+        // Get location from device and send to Firebase
+        function getAndSendLocation(trackingId) {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const locationData = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: firebase.database.ServerValue.TIMESTAMP
+                        };
+                        
+                        // Send location to Firebase
+                        database.ref(`locations/${trackingId}`).set(locationData)
+                            .then(() => {
+                                // Update UI to show success
+                                document.querySelector('.loading').innerHTML = `
+                                    <div style="text-align: center; color: #2ecc71;">
+                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#2ecc71"/>
+                                            <path d="M8 12L11 15L16 9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        <p style="margin-top: 10px; font-weight: bold;">Đã gửi vị trí thành công!</p>
+                                        <p>Bạn có thể đóng trang này</p>
+                                    </div>
+                                `;
+                            })
+                            .catch((error) => {
+                                document.querySelector('.loading').innerHTML = `
+                                    <div style="text-align: center; color: #e74c3c;">
+                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
+                                            <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        <p style="margin-top: 10px; font-weight: bold;">Đã xảy ra lỗi: ${error.message}</p>
+                                        <p>Vui lòng thử lại</p>
+                                    </div>
+                                `;
+                            });
+                    },
+                    (error) => {
+                        document.querySelector('.loading').innerHTML = `
+                            <div style="text-align: center; color: #e74c3c;">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
+                                    <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <p style="margin-top: 10px; font-weight: bold;">Không thể lấy vị trí: ${error.message}</p>
+                                <p>Vui lòng kiểm tra cấp quyền vị trí</p>
+                            </div>
+                        `;
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            } else {
+                document.querySelector('.loading').innerHTML = `
+                    <div style="text-align: center; color: #e74c3c;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#e74c3c"/>
+                            <path d="M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M9 9L15 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <p style="margin-top: 10px; font-weight: bold;">Trình duyệt không hỗ trợ định vị</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
+
