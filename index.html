@@ -304,6 +304,24 @@
             });
         }
 
+        // Hàm giải mã URL đã được mã hóa
+        function decodeUrl(encodedUrl) {
+            try {
+                // Giải mã URL
+                const decodedUrl = decodeURIComponent(encodedUrl);
+                
+                // Kiểm tra xem URL có hợp lệ không
+                if (!decodedUrl.startsWith('http://') && !decodedUrl.startsWith('https://')) {
+                    throw new Error('URL không hợp lệ');
+                }
+                
+                return decodedUrl;
+            } catch (e) {
+                console.error('Lỗi khi giải mã URL:', e);
+                return null;
+            }
+        }
+
         // Xử lý sự kiện khi nhấn nút Tạo Liên Kết
         document.getElementById('generate-btn').addEventListener('click', async function() {
             const deviceName = document.getElementById('link-name').value.trim() || 'Thiết bị không xác định';
@@ -377,7 +395,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const locData = urlParams.get('loc');
             const senderId = urlParams.get('senderId');
-            const returnUrl = urlParams.get('returnUrl');
+            const returnUrlEncoded = urlParams.get('returnUrl');
 
             if (locData && senderId) {
                 // Đây là URL từ thiết bị gửi vị trí
@@ -386,14 +404,22 @@
                 // Đây là URL để yêu cầu vị trí
                 const senderName = urlParams.get('name') || 'Thiết bị không xác định';
                 
+                // Giải mã URL trả về nếu cần
+                let returnUrl = window.location.href.split('?')[0];
+                if (returnUrlEncoded) {
+                    const decodedUrl = decodeUrl(returnUrlEncoded);
+                    if (decodedUrl) {
+                        returnUrl = decodedUrl;
+                    }
+                }
+                
                 // Yêu cầu vị trí từ người dùng
                 updateStatus('Đang yêu cầu vị trí của bạn...');
                 
                 getCurrentLocation()
                     .then(location => {
                         // Tạo URL để gửi vị trí về
-                        const targetUrl = returnUrl || new URL(window.location.href.split('?')[0], window.location.origin).toString();
-                        const returnUrlObj = new URL(targetUrl);
+                        const returnUrlObj = new URL(returnUrl);
                         
                         returnUrlObj.searchParams.set('loc', `${location.lat},${location.lng}`);
                         returnUrlObj.searchParams.set('name', senderName);
